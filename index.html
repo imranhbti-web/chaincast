@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16243A">
+<title>ChainCast — Markov Event Predictor</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"ChainCast","short_name":"ChainCast","start_url":".","display":"standalone","background_color":"%23F5F7FA","theme_color":"%2316243A","icons":[{"src":"data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><rect width=%27100%27 height=%27100%27 rx=%2722%27 fill=%27%2316243A%27/><circle cx=%2728%27 cy=%2750%27 r=%2712%27 fill=%27%23E4572E%27/><circle cx=%2760%27 cy=%2750%27 r=%2712%27 fill=%27%2317BEBB%27/><circle cx=%2788%27 cy=%2750%27 r=%278%27 fill=%27none%27 stroke=%27%23FFC914%27 stroke-width=%274%27 stroke-dasharray=%274 4%27/></svg>","sizes":"any","type":"image/svg+xml"}]}'>
+<style>
+:root{
+  --bg:#F5F7FA; --surface:#FFFFFF; --ink:#16243A; --ink2:#5B6B80;
+  --accent:#4C5FD5; --accent-soft:#E6E9FB; --line:#DDE4EC;
+  --good:#2E9E5B; --warn:#C77700;
+  --mono:ui-monospace,"SF Mono","Roboto Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif;padding-bottom:60px}
+.wrap{max-width:680px;margin:0 auto;padding:0 14px}
+header{background:var(--ink);color:#fff;padding:18px 0 16px;margin-bottom:16px}
+header .wrap{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h1{font-size:22px;font-weight:800;letter-spacing:.3px}
+h1 .dot{color:#17BEBB}
+header small{color:#9FB0C6;font-size:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;min-height:40px}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.ghost{border-style:dashed;color:var(--ink2)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select,input[type=text]{font:inherit;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;min-height:40px;max-width:100%}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-width:52px}
+.seg button.on{background:var(--accent);color:#fff;font-weight:700}
+.chip{border-radius:999px;font-weight:600;border:0;color:#fff;padding:9px 16px}
+.chain{display:flex;align-items:center;gap:4px;overflow-x:auto;padding:8px 2px;-webkit-overflow-scrolling:touch}
+.link{flex:none;border-radius:999px;color:#fff;font-size:13px;font-weight:600;padding:6px 12px;white-space:nowrap}
+.arrow{flex:none;color:var(--ink2);font-size:12px}
+.ghost-link{flex:none;border:2px dashed;border-radius:999px;font-size:13px;font-weight:700;padding:5px 12px;background:transparent;white-space:nowrap}
+.predline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.predline .tag{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2);min-width:104px}
+.predline .pill{border-radius:999px;color:#fff;font-size:13px;font-weight:700;padding:5px 12px;white-space:nowrap}
+.predline .gpill{border:2px solid;border-radius:999px;font-size:12px;font-weight:700;padding:4px 10px;background:#fff;white-space:nowrap}
+.predline .gpill b{font-weight:800}
+.big-pred{font-size:26px;font-weight:800;margin:4px 0 2px}
+.ctx{font-family:var(--mono);font-size:13px;color:var(--ink2)}
+.bar-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.bar-label{flex:0 0 92px;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:16px;background:var(--accent-soft);border-radius:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:8px;transition:width .4s ease}
+.bar-pct{flex:0 0 52px;text-align:right;font-family:var(--mono);font-size:13px}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+th{background:#F0F3F8;font-size:12px}
+td.ctxcell{font-family:var(--mono);font-size:12px;text-align:left;background:#F8FAFC;white-space:nowrap}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.muted{color:var(--ink2);font-size:13px}
+.note{font-size:13px;color:var(--ink2);margin-top:8px}
+.acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.acc-cell{border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.acc-cell.best{border-color:var(--good);background:#EDF9F1}
+.acc-cell .v{font-size:22px;font-weight:800;font-family:var(--mono)}
+.acc-cell .k{font-size:12px;color:var(--ink2)}
+details{border-top:1px solid var(--line);padding:10px 0}
+details summary{font-weight:600;cursor:pointer}
+details p{margin:8px 0;font-size:14px;color:#2C3E55}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:9}
+.toast.show{opacity:1}
+.statusdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Chain<span class="dot">•</span>Cast</h1>
+  <small>Markov event predictor — order 1 · 2 · 3</small>
+</div></header>
+
+<div class="wrap">
+
+  <!-- PROJECT -->
+  <div class="card">
+    <div class="eyebrow">Project</div>
+    <div class="row">
+      <select id="projSel" aria-label="Select project"></select>
+      <button onclick="newProject()">+ New</button>
+      <button onclick="renameProject()">Rename</button>
+      <button onclick="deleteProject()">Delete</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="muted">Memory (order):</span>
+      <div class="seg" id="orderSeg">
+        <button onclick="setOrder(1)">1</button>
+        <button onclick="setOrder(2)">2</button>
+        <button onclick="setOrder(3)">3</button>
+      </div>
+      <span class="muted" id="saveStatus"></span>
+    </div>
+  </div>
+
+  <!-- DATA IN -->
+  <div class="card">
+    <div class="eyebrow">Add events (oldest → newest)</div>
+    <div class="row" id="stateChips"></div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="newState" placeholder="New state name (e.g. Sunny)" style="flex:1;min-width:140px">
+      <button onclick="addState()">Add state</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="fileInput.click()">📄 Upload CSV / Excel</button>
+      <input type="file" id="fileInput" accept=".csv,.txt,.xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
+      <button onclick="pasteData()">Paste list</button>
+      <button onclick="undoEvent()">↩ Undo</button>
+      <button class="ghost" onclick="clearEvents()">Clear</button>
+      <button class="ghost" onclick="loadDemo()">Demo data</button>
+    </div>
+    <div class="row" id="colPickRow" style="display:none;margin-top:10px">
+      <span class="muted">Which column has your events?</span>
+      <select id="colPick"></select>
+      <button class="primary" onclick="importColumn()">Import</button>
+    </div>
+    <div class="note" id="dataInfo"></div>
+  </div>
+
+  <!-- CHAIN -->
+  <div class="card">
+    <div class="eyebrow">Your chain (last 30) + predicted next link</div>
+    <div class="chain" id="chainViz"></div>
+    <div class="predline" id="predCloseRow"></div>
+    <div class="predline" id="predOpenRow"></div>
+    <div class="note" id="predOpenNote"></div>
+  </div>
+
+  <!-- PREDICTION -->
+  <div class="card">
+    <div class="eyebrow">Prediction</div>
+    <div id="predBox"></div>
+  </div>
+
+  <!-- ACCURACY -->
+  <div class="card">
+    <div class="eyebrow">Which order fits your data? (walk-forward test)</div>
+    <div class="acc-grid" id="accGrid"></div>
+    <div class="note">Each score: the app replays your history, predicting every event using only the events before it, and counts how often it was right. Compare against the baseline of always guessing the most common state so far: <b id="baseAcc">—</b>. If a higher order doesn't clearly beat order 1, stick with order 1 — it needs less data.</div>
+  </div>
+
+  <!-- MATRIX -->
+  <div class="card">
+    <div class="eyebrow">Transition table (learned probabilities)</div>
+    <div class="scroll" id="matrixBox"></div>
+    <div class="note">Row = what just happened (the context). Columns = what came next, as a percentage. Darker = more likely. <span class="ctx" id="matrixCount"></span></div>
+  </div>
+
+  <!-- LEARN -->
+  <div class="card">
+    <div class="eyebrow">Markov chains in 2 minutes</div>
+    <details open><summary>What is it?</summary>
+      <p>A Markov chain assumes the next event depends only on the recent past — not the whole history. The app simply counts: "after <i>Sunny</i>, how many times did <i>Rainy</i> come next?" and turns the counts into percentages.</p></details>
+    <details><summary>What does order 1 / 2 / 3 mean?</summary>
+      <p><b>Order 1:</b> looks at the last 1 event. "It's Cloudy now → what usually follows Cloudy?"</p>
+      <p><b>Order 2:</b> looks at the last 2 events. "Sunny then Cloudy → what usually follows that pair?" Patterns like "upset always comes after two normal days" only show up at order 2+.</p>
+      <p><b>Order 3:</b> last 3 events. More precise patterns, but needs much more data — with 3 states, order 3 has 27 possible contexts to learn.</p></details>
+    <details><summary>How much data do I need?</summary>
+      <p>Rough rule: at least 10–20× the number of contexts. With 3 states: order 1 needs ~30+ events, order 2 ~100+, order 3 ~300+. Below that, higher orders mostly memorize noise. The walk-forward test above tells you honestly.</p></details>
+    <details><summary>What if my exact context was never seen before?</summary>
+      <p>The app backs off: if the last-3 pattern is new, it tries the last-2 pattern, then last-1, then overall frequencies. The prediction card tells you when this happens.</p></details>
+    <details><summary>File format for upload</summary>
+      <p>One event per row, oldest first. CSV or Excel. If there are several columns, you'll be asked which one to use. Values are treated as text labels — "Positive", "Late", "Happy" — anything goes.</p></details>
+  </div>
+
+  <!-- BACKUP -->
+  <div class="card">
+    <div class="eyebrow">Backup</div>
+    <div class="row">
+      <button onclick="exportJSON()">⬇ Export all projects (JSON)</button>
+      <button onclick="importInput.click()">⬆ Import JSON</button>
+      <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(this.files[0])">
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ---------- palette for states ---------- */
+const PALETTE=["#E4572E","#17BEBB","#FFC914","#76B041","#A14DA0","#2E86AB","#F45B69","#8D6A9F","#3F784C","#B0413E"];
+const SEP="\u001f";
+
+/* ---------- storage (works on GitHub Pages; falls back to memory in previews) ---------- */
+let memStore={};
+const store={
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return memStore[k]??null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); document.getElementById("saveStatus").innerHTML='<span class="statusdot"></span>saved'; }
+            catch(e){ memStore[k]=v; document.getElementById("saveStatus").textContent="⚠ session only — use Export"; } }
+};
+
+/* ---------- state ---------- */
+let db={projects:[{name:"My first project",states:[],events:[],order:1}],current:0};
+function proj(){ return db.projects[db.current]; }
+function save(){ store.set("chaincast",JSON.stringify(db)); }
+function load(){ const raw=store.get("chaincast"); if(raw){ try{ db=JSON.parse(raw);}catch(e){} } }
+
+/* ---------- markov core ---------- */
+function buildModel(seq,k){
+  const m=new Map();
+  for(let i=k;i<seq.length;i++){
+    const ctx=seq.slice(i-k,i).join(SEP), nxt=seq[i];
+    if(!m.has(ctx)) m.set(ctx,new Map());
+    const row=m.get(ctx); row.set(nxt,(row.get(nxt)||0)+1);
+  }
+  return m;
+}
+function dist(row){
+  let tot=0; row.forEach(v=>tot+=v);
+  const d={}; row.forEach((v,s)=>d[s]=v/tot); return d;
+}
+function predictBackoff(seq,order,states){
+  for(let k=order;k>=1;k--){
+    if(seq.length<k) continue;
+    const m=buildModel(seq,k), ctx=seq.slice(-k).join(SEP);
+    if(m.has(ctx)) return {dist:dist(m.get(ctx)),usedOrder:k,ctx:seq.slice(-k)};
+  }
+  if(seq.length){ // overall frequency fallback
+    const c=new Map(); seq.forEach(s=>c.set(s,(c.get(s)||0)+1));
+    return {dist:dist(c),usedOrder:0,ctx:[]};
+  }
+  return null;
+}
+function walkForward(seq,k){
+  // online: predict seq[i] from counts of seq[0..i-1], then learn it
+  const m=new Map(), freq=new Map();
+  let hits=0,total=0,baseHits=0;
+  for(let i=0;i<seq.length;i++){
+    if(i>=k){
+      total++;
+      const ctx=seq.slice(i-k,i).join(SEP);
+      let guess=null;
+      // backoff through lower orders built on the fly
+      for(let kk=k;kk>=1&&!guess;kk--){
+        if(i<kk) break;
+        const c2=seq.slice(i-kk,i).join(SEP);
+        const row=(kk===k)?m.get(ctx):countCtx(seq,i,kk,c2);
+        if(row&&row.size){ guess=argmax(row); }
+      }
+      if(!guess&&freq.size) guess=argmax(freq);
+      if(guess===seq[i]) hits++;
+      if(freq.size&&argmax(freq)===seq[i]) baseHits++; else if(!freq.size) {}
+    }
+    // learn
+    if(i>=k){ const ctx=seq.slice(i-k,i).join(SEP);
+      if(!m.has(ctx)) m.set(ctx,new Map());
+      const row=m.get(ctx); row.set(seq[i],(row.get(seq[i])||0)+1); }
+    freq.set(seq[i],(freq.get(seq[i])||0)+1);
+  }
+  return {acc:total?hits/total:0,base:total?baseHits/total:0,n:total};
+}
+function countCtx(seq,upto,k,ctxStr){
+  const row=new Map();
+  for(let i=k;i<upto;i++){
+    if(seq.slice(i-k,i).join(SEP)===ctxStr){ const n=seq[i]; row.set(n,(row.get(n)||0)+1); }
+  }
+  return row;
+}
+function argmax(map){ let best=null,bv=-1; map.forEach((v,s)=>{ if(v>bv){bv=v;best=s;} }); return best; }
+
+/* ---------- UI helpers ---------- */
+function colorOf(state){ const i=proj().states.indexOf(state); return PALETTE[i%PALETTE.length]; }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- actions ---------- */
+function setOrder(k){ proj().order=k; save(); render(); }
+function addState(){
+  const v=document.getElementById("newState").value.trim();
+  if(!v) return;
+  if(proj().states.includes(v)){ toast("State already exists"); return; }
+  proj().states.push(v); document.getElementById("newState").value=""; save(); render();
+}
+function addEvent(s){ proj().events.push(s); save(); render(); }
+function undoEvent(){ proj().events.pop(); save(); render(); }
+function clearEvents(){ if(confirm("Clear all events in this project? States are kept.")){ proj().events=[]; save(); render(); } }
+function newProject(){
+  const name=prompt("Project name:","New project"); if(!name) return;
+  db.projects.push({name,states:[],events:[],order:1}); db.current=db.projects.length-1; save(); render();
+}
+function renameProject(){ const n=prompt("New name:",proj().name); if(n){ proj().name=n; save(); render(); } }
+function deleteProject(){
+  if(db.projects.length===1){ toast("Can't delete the only project"); return; }
+  if(confirm(`Delete "${proj().name}"?`)){ db.projects.splice(db.current,1); db.current=0; save(); render(); }
+}
+function loadDemo(){
+  const seq="Sunny Sunny Cloudy Rainy Rainy Cloudy Sunny Sunny Sunny Cloudy Cloudy Rainy Cloudy Sunny Sunny Cloudy Rainy Rainy Rainy Cloudy Sunny Cloudy Rainy Cloudy Sunny Sunny Cloudy Cloudy Rainy Cloudy Sunny Sunny Sunny Cloudy Rainy Rainy Cloudy Cloudy Sunny Sunny".split(" ");
+  db.projects.push({name:"Demo: Weather",states:["Sunny","Cloudy","Rainy"],events:seq,order:1});
+  db.current=db.projects.length-1; save(); render(); toast("Demo project loaded");
+}
+function pasteData(){
+  const t=prompt("Paste events separated by commas or new lines (oldest first):");
+  if(!t) return;
+  const items=t.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+  ingest(items);
+}
+function ingest(items){
+  items.forEach(v=>{ if(!proj().states.includes(v)) proj().states.push(v); proj().events.push(v); });
+  save(); render(); toast(`Added ${items.length} events`);
+}
+
+/* ---------- file handling ---------- */
+let pendingRows=null;
+function handleFile(file){
+  if(!file) return;
+  const name=file.name.toLowerCase();
+  if(name.endsWith(".csv")||name.endsWith(".txt")){
+    const r=new FileReader();
+    r.onload=()=>{ pendingRows=parseCSV(r.result); afterParse(); };
+    r.readAsText(file);
+  }else{
+    loadSheetJS().then(()=>{
+      const r=new FileReader();
+      r.onload=()=>{
+        const wb=XLSX.read(new Uint8Array(r.result),{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        pendingRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""}).map(row=>row.map(String));
+        afterParse();
+      };
+      r.readAsArrayBuffer(file);
+    }).catch(()=>toast("Excel needs internet the first time. CSV works offline."));
+  }
+  document.getElementById("fileInput").value="";
+}
+function loadSheetJS(){
+  if(window.XLSX) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=res; s.onerror=rej; document.head.appendChild(s);
+  });
+}
+function parseCSV(text){
+  const rows=[]; let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if(c==='"') q=true;
+    else if(c===","){ row.push(cell); cell=""; }
+    else if(c==="\n"||c==="\r"){ if(c==="\r"&&text[i+1]==="\n") i++; row.push(cell); cell=""; if(row.some(x=>x.trim()!=="")) rows.push(row); row=[]; }
+    else cell+=c;
+  }
+  row.push(cell); if(row.some(x=>x.trim()!=="")) rows.push(row);
+  return rows;
+}
+function afterParse(){
+  if(!pendingRows||!pendingRows.length){ toast("File is empty"); return; }
+  const cols=Math.max(...pendingRows.map(r=>r.length));
+  if(cols===1){ importColumnData(0); return; }
+  const sel=document.getElementById("colPick"); sel.innerHTML="";
+  const header=pendingRows[0];
+  for(let c=0;c<cols;c++){
+    const o=document.createElement("option"); o.value=c;
+    o.textContent=(header[c]&&isNaN(header[c]))?header[c]:`Column ${c+1}`;
+    sel.appendChild(o);
+  }
+  document.getElementById("colPickRow").style.display="flex";
+}
+function importColumn(){ importColumnData(+document.getElementById("colPick").value); document.getElementById("colPickRow").style.display="none"; }
+function importColumnData(c){
+  let vals=pendingRows.map(r=>String(r[c]??"").trim()).filter(Boolean);
+  // drop header row if it's a label that never repeats and non-numeric
+  if(vals.length>2&&isNaN(vals[0])&&vals.slice(1).indexOf(vals[0])===-1&&new Set(vals.slice(1)).size<vals.length-1) vals=vals.slice(1);
+  const uniq=new Set(vals);
+  if(uniq.size>15&&!confirm(`This column has ${uniq.size} different values — Markov chains work best with a few repeating states. Import anyway?`)) return;
+  ingest(vals); pendingRows=null;
+}
+
+/* ---------- backup ---------- */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(db,null,1)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="chaincast-backup.json"; a.click(); URL.revokeObjectURL(a.href);
+}
+function importJSON(file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(d.projects){ db=d; db.current=0; save(); render(); toast("Imported"); } }catch(e){ toast("Invalid file"); } };
+  r.readAsText(file);
+  document.getElementById("importInput").value="";
+}
+
+/* ---------- render ---------- */
+function render(){
+  const p=proj();
+  // project select
+  const sel=document.getElementById("projSel"); sel.innerHTML="";
+  db.projects.forEach((pr,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=pr.name; if(i===db.current)o.selected=true; sel.appendChild(o); });
+  sel.onchange=()=>{ db.current=+sel.value; save(); render(); };
+  // order seg
+  [...document.getElementById("orderSeg").children].forEach((b,i)=>b.classList.toggle("on",i+1===p.order));
+  // state chips
+  const chips=document.getElementById("stateChips"); chips.innerHTML="";
+  if(!p.states.length){ chips.innerHTML='<span class="muted">Add your states below (e.g. Happy / Normal / Upset), then tap them to record events — or just upload a file.</span>'; }
+  p.states.forEach(s=>{
+    const b=document.createElement("button"); b.className="chip"; b.style.background=colorOf(s);
+    b.textContent=s; b.onclick=()=>addEvent(s); chips.appendChild(b);
+  });
+  document.getElementById("dataInfo").textContent=p.events.length?`${p.events.length} events · ${p.states.length} states`:"";
+  // prediction
+  const pred=predictBackoff(p.events,p.order,p.states);
+  renderChain(p,pred); renderPredRows(p,pred); renderPred(p,pred); renderAcc(p); renderMatrix(p);
+}
+function renderChain(p,pred){
+  const box=document.getElementById("chainViz"); box.innerHTML="";
+  const recent=p.events.slice(-30);
+  if(!recent.length){ box.innerHTML='<span class="muted">Your recorded events will appear here as a chain.</span>'; return; }
+  recent.forEach((s,i)=>{
+    const d=document.createElement("span"); d.className="link"; d.style.background=colorOf(s); d.textContent=s; box.appendChild(d);
+    const a=document.createElement("span"); a.className="arrow"; a.textContent="›"; box.appendChild(a);
+  });
+  if(pred){
+    const top=Object.entries(pred.dist).sort((a,b)=>b[1]-a[1])[0];
+    const g=document.createElement("span"); g.className="ghost-link";
+    g.style.borderColor=colorOf(top[0]); g.style.color=colorOf(top[0]);
+    g.textContent=`${top[0]} ${(top[1]*100).toFixed(0)}%`;
+    box.appendChild(g);
+  }
+  box.scrollLeft=box.scrollWidth;
+}
+/* group = text before first separator (- _ : space). Lets "GU-Held" & "GU-Filled"
+   share the group "GU", so once you know the OPEN you can narrow the prediction. */
+function groupOf(s){ const m=String(s).split(/[\-_:\s]/); return m.length>1?m[0]:null; }
+function renderPredRows(p,pred){
+  const rc=document.getElementById("predCloseRow");
+  const ro=document.getElementById("predOpenRow");
+  const note=document.getElementById("predOpenNote");
+  rc.innerHTML=""; ro.innerHTML=""; note.textContent="";
+  if(!pred){ return; }
+  // ----- row 1: single best prediction, for use after today's close -----
+  const top=Object.entries(pred.dist).sort((a,b)=>b[1]-a[1])[0];
+  rc.innerHTML=`<span class="tag">Predict at close</span>`;
+  const pill=document.createElement("span"); pill.className="pill";
+  pill.style.background=colorOf(top[0]); pill.textContent=`${top[0]} ${(top[1]*100).toFixed(0)}%`;
+  rc.appendChild(pill);
+  // ----- row 2: best per opening-group, for use once the market opens -----
+  const groups={};
+  p.states.forEach(s=>{ const g=groupOf(s); if(g){ (groups[g]=groups[g]||[]).push(s); } });
+  const gnames=Object.keys(groups).filter(g=>groups[g].length>=2).sort();
+  if(!gnames.length){
+    note.textContent="Tip: name states like \u201cGU-Held / GU-Filled\u201d (a shared prefix before \u201c-\u201d). Then this row shows the best pick once you see the open.";
+    return;
+  }
+  ro.innerHTML=`<span class="tag">Best at open</span>`;
+  gnames.forEach(g=>{
+    // renormalize the predicted distribution over just this group's states
+    let tot=0; groups[g].forEach(s=>tot+=(pred.dist[s]||0));
+    const wrap=document.createElement("span"); wrap.className="gpill";
+    if(tot<=0){ wrap.style.borderColor="var(--line)"; wrap.style.color="var(--ink2)";
+      wrap.innerHTML=`if <b>${esc(g)}</b>: \u2014`; ro.appendChild(wrap); return; }
+    let best=null,bv=-1; groups[g].forEach(s=>{ const v=(pred.dist[s]||0); if(v>bv){bv=v;best=s;} });
+    wrap.style.borderColor=colorOf(best); wrap.style.color=colorOf(best);
+    wrap.innerHTML=`if <b>${esc(g)}</b> \u2192 ${esc(best)} ${(bv/tot*100).toFixed(0)}%`;
+    ro.appendChild(wrap);
+  });
+  note.textContent="Once you see the open, read the matching group: it re-weights the same prediction over only the states still possible.";
+}
+function renderPred(p,pred){
+  const box=document.getElementById("predBox");
+  if(!pred){ box.innerHTML='<span class="muted">Record at least 2 events to get a prediction.</span>'; return; }
+  const entries=Object.entries(pred.dist).sort((a,b)=>b[1]-a[1]);
+  const top=entries[0];
+  let ctxNote;
+  if(pred.usedOrder===0) ctxNote="Based on overall frequencies (not enough pattern data yet)";
+  else{
+    ctxNote=`After [${pred.ctx.join(" › ")}]`;
+    if(pred.usedOrder<p.order) ctxNote+=` — backed off to order ${pred.usedOrder}: this exact order-${p.order} pattern hasn't appeared before`;
+  }
+  let html=`<div class="big-pred" style="color:${colorOf(top[0])}">${esc(top[0])} <span style="font-family:var(--mono);font-size:20px;color:var(--ink)">${(top[1]*100).toFixed(1)}%</span></div>
+  <div class="ctx">${esc(ctxNote)}</div><div style="margin-top:10px">`;
+  entries.forEach(([s,v])=>{
+    html+=`<div class="bar-row"><span class="bar-label">${esc(s)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${(v*100).toFixed(1)}%;background:${colorOf(s)}"></span></span>
+      <span class="bar-pct">${(v*100).toFixed(1)}%</span></div>`;
+  });
+  box.innerHTML=html+"</div>";
+}
+function renderAcc(p){
+  const g=document.getElementById("accGrid"); g.innerHTML="";
+  if(p.events.length<6){ g.innerHTML='<span class="muted" style="grid-column:1/-1">Need ~6+ events to test.</span>'; document.getElementById("baseAcc").textContent="—"; return; }
+  const res=[1,2,3].map(k=>({k,...walkForward(p.events,k)}));
+  const best=Math.max(...res.map(r=>r.acc));
+  res.forEach(r=>{
+    const c=document.createElement("div"); c.className="acc-cell"+(r.acc===best&&r.acc>0?" best":"");
+    c.innerHTML=`<div class="v">${(r.acc*100).toFixed(0)}%</div><div class="k">Order ${r.k} · ${r.n} tests</div>`;
+    g.appendChild(c);
+  });
+  document.getElementById("baseAcc").textContent=(res[0].base*100).toFixed(0)+"%";
+}
+function renderMatrix(p){
+  const box=document.getElementById("matrixBox");
+  const m=buildModel(p.events,p.order);
+  if(!m.size){ box.innerHTML='<span class="muted">The transition table appears once you have enough events.</span>'; document.getElementById("matrixCount").textContent=""; return; }
+  let html=`<table><tr><th style="text-align:left">Context (last ${p.order})</th>`;
+  const cols=[...p.states].sort();
+  cols.forEach(s=>html+=`<th>${esc(s)}</th>`);
+  html+="<th>n</th></tr>";
+  const ctxs=[...m.keys()].sort();
+  ctxs.forEach(ctx=>{
+    const row=m.get(ctx); const d=dist(row); let n=0; row.forEach(v=>n+=v);
+    html+=`<tr><td class="ctxcell">${esc(ctx.split(SEP).join(" › "))}</td>`;
+    cols.forEach(s=>{
+      const v=d[s]||0;
+      const bg=v?`rgba(76,95,213,${(0.12+v*0.55).toFixed(2)})`:"transparent";
+      const fg=v>0.55?"#fff":"var(--ink)";
+      html+=`<td style="background:${bg};color:${fg};font-family:var(--mono)">${v?(v*100).toFixed(0)+"%":"·"}</td>`;
+    });
+    html+=`<td style="font-family:var(--mono);color:var(--ink2)">${n}</td></tr>`;
+  });
+  box.innerHTML=html+"</table>";
+  document.getElementById("matrixCount").textContent=`${ctxs.length} contexts observed`;
+}
+
+/* ---------- init ---------- */
+load(); render();
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>
